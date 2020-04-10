@@ -1,0 +1,36 @@
+# Exim Filter
+# the above line is required, it tells the system what syntax to expect in the file
+# documentation at http://www.exim.org/exim-html-current/doc/html/spec_html/filter_ch-exim_filter_files.html
+# folder names must have trailing /
+# CONTAINS is a case sensitive match
+# contains is a non case sensitive match
+
+# quit on failure
+if error_message then finish endif
+
+# this forwards the mail to someone@domain and optionally delivers it also your mailbox
+# unseen deliver recipient@companyname.co.uk
+
+# deal with Spam, these will be marked with
+# X-Spam-Level: YES or X-Spam-Status: Yes,  (be careful, this one contains baYES)
+if
+  $h_X-Spam-Level: contains "YES"
+    or
+  $h_X-Spam-Status: CONTAINS "Yes,"
+then
+  save $home/Maildir/.Junk/
+  finish
+endif
+
+# out of office
+if personal
+  alias first.second@company.co.uk
+  then
+  vacation to $reply_address
+  file "$home/.vacation.msg"
+  once $home/.vacation.db
+  log $home/.vacation.log
+  once_repeat 10d
+  from "First Second <first.second@company.co.uk>"
+  subject "Auto: Re: $h_subject:"
+endif
