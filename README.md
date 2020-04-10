@@ -4,7 +4,7 @@ In our environment we use a Debian server, running Samba to make it emulate a Wi
 
 I couldn't find any plugins for Thunderbird which would create / manage this .forward file, so this Python project is to manage the file in a user friendly way.
 
-An earlier version where I hacked up a little .hta/VB script to do the job (basically to figure out the steps required to make it work) can be found here:
+An earlier version where I hacked up a little .hta/VB script to do the job (basically to figure out the steps required to make it work) can be found here: https://github.com/stringydave/Exim-Email-Assistant
 
 The user can do one (and only one) of:
 
