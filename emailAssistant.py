@@ -15,6 +15,9 @@ import os
 import pathlib
 # import os.path
 
+from control_file import control_file_read
+from control_file import control_file_write
+
 # sg.theme('Dark Red')
 # sg.theme('Default1')
 # sg.set_options(text_color='black', background_color='#A6B2BE', text_element_background_color='#A6B2BE')
@@ -38,47 +41,52 @@ import pathlib
 # H:        \\server.address\usernameshare
 
 # initialise GLOBAL
-debug = True
+debug = False
 home_share          = os.getenv('HOMESHARE')
 system_drive        = os.getenv('SYSTEMDRIVE')
-if debug:
-    control_file_path   = ".forward"
-    vacation_file_path  = ".vacation.msg"
-else:
-    control_file_path   = home_share + "\.forward"
-    vacation_file_path  = home_share + "\.vacation.msg"
-
-control_template    =  pathlib.Path(__file__).parent.absolute() / "forward.template"
-vacation_template   =  pathlib.Path(__file__).parent.absolute() / "vacation.template"
-
-
-if debug:
-    print("     home:", home_share, "\n    drive:", system_drive, "\n .forward:", control_file_path, "\n.vacation:", vacation_file_path)
-    print("control_t:", control_template, "\nvacationt:", vacation_template)
-
-debug = False
-
 vacation_section = False
+vacation_section_start = 0
+vacation_section_end = 0
 alias_index = 0
 alias_list = ""
 my_name = ""
 # define empty lists
-# control_file = [""]
-# global control_file
-# control_file.clear()
-# alias_email = [""]
-# alias_email.clear()
+control_file = [""]
+control_file.clear()
+alias_list = ["aliases"]
+alias_list.clear()
+vacation_file = [""]
+vacation_file.clear()
 # email_address = ""
+
+debug = True
+
+if debug:
+    control_file_path   = ".forward"
+    vacation_file_path  = ".vacation.msg"
+else:
+    control_file_path   = home_share + "\.forward"         # this is required
+    vacation_file_path  = home_share + "\.vacation.msg"    # this is the default, can be overridden
+
+# the pathlib library allows us to do path operations whilst taking care of how the underlying operating system wants it
+control_template    =  pathlib.Path(__file__).parent.absolute() / "forward.template"
+vacation_template   =  pathlib.Path(__file__).parent.absolute() / "vacation.template"
+
+debug = False
+
+if debug:
+    print("     home:", home_share, "\n    drive:", system_drive, "\n .forward:", control_file_path, "\n.vacation:", vacation_file_path)
+    print("control_t:", control_template, "\nvacationt:", vacation_template)
 
 ''' functions =================================================================
 '''
 
 def valid_email(check_email_address):
     # the purpose of this function is to check that a string looks like a valid email address
-    # check for @ & . and the default address
+    # https://stackoverflow.com/questions/8022530/how-to-check-for-valid-email-address
+    # check that it seems valid and that it's not still the default address with which we're populating the form
     if len(check_email_address) > 10 \
-        and re.search("@",        check_email_address) \
-        and re.search(".",        check_email_address) \
+        and bool(re.search(r"^[\w\.\+\-]+\@[\w]+\.[a-z]{2,3}$", check_email_address)) \
         and not re.search("ecipient", check_email_address) \
         and not re.search("company",  check_email_address):
         return True
@@ -108,21 +116,30 @@ def set_redirect(set_this, redirect_to = 'dummy@dummy.com'):
     if debug:
         print('  set_redirect: ', set_this, redirect_to)
     if set_this:
-        if not valid_email(redirect_to):
+        if valid_email(redirect_to):
+            control_file[forward_line] = "unseen deliver " + redirect_to
+            # and turn off any Vacation message
+            set_vacation(False)
+            # and write the control file
+            cf_write_status = control_file_write(control_file, control_file_path, debug)
+            return cf_write_status
+        else:
             sg.popup('send a copy email address:' + redirect_to, 'does not seem to be a valid email address', title = 'error')
             return False
-        else:
-            control_file[forward_line] = "unseen deliver " + redirect_to
-        # and turn off any Vacation message
-        set_vacation(False)
     else: 
         # add a comment to the start of the line, unless it already has one
         if not re.match("#", control_file[forward_line]):
             control_file[forward_line] = "# " + control_file[forward_line]
+        # and write the control file
+        cf_write_status = control_file_write(control_file, control_file_path, debug)
+        return cf_write_status
 
 def set_vacation(set_this, vacation_my_name="", vacation_my_aliases="", vacation_message=""):
+    global vacation_section_end
     if debug:
         print('  set_vacation: ', set_this, vacation_my_name, vacation_my_aliases, vacation_message)
+        print('vacation_start: ', vacation_section_start)
+        print('  vacation_end: ', vacation_section_end)
     if set_this:
         # the variable vacation_file_linux_version is set already
         
@@ -187,10 +204,9 @@ def set_vacation(set_this, vacation_my_name="", vacation_my_aliases="", vacation
         # and then do the last line of the section
         control_file[vacation_section_end] = re.sub("^# *", "", control_file[vacation_section_end])
         
-        for j in range(vacation_section_start, vacation_section_end + 1, 1):
-            if debug:
+        if debug:
+            for j in range(vacation_section_start, vacation_section_end + 1, 1):
                 print(control_file[j])
-
         # and do this
         set_redirect(False)
 
@@ -203,60 +219,25 @@ def set_vacation(set_this, vacation_my_name="", vacation_my_aliases="", vacation
             # "Subject: Auto: Re: <message_subject>" & vbCRLF & _
             # "Message: " & VacationMessage.Value & vbCRLF & vbCRLF& _
             # "Please remember to turn this off on your return"
+        return True
     else: 
         # add a comment to the start of the line, unless it already has one
         for j in range(vacation_section_start, vacation_section_end + 1, 1):
             if not re.match("#", control_file[j]):
                 control_file[j] = "# " + control_file[j]
+            if debug:
+                print(control_file[j])
+        return True
 
 def reset():
     # turn off Redirect and Vacation
     if debug:
         print('  called reset: ')
-    set_redirect(False)
-    set_vacation(False)
-
-
-
-# read the control file into a list, strip off trailing whitespace or newlines
-def control_file_read(control_file_path):
+    redirect_unset = set_redirect(False)
+    vacation_unset = set_vacation(False)
     if debug:
-        print("attempting to open:", control_file_path)
-    global control_file
-    try: 
-        with open(control_file_path, 'r') as f:
-            control_file = [line.rstrip() for line in f]
-    except IOError as error:
-        # we couldn't open the file for some reason
-        if debug:
-            print(control_file_path, "File not accessible")
-        return False
-    return True
-
-# write the control file to file, put back newlines
-def control_file_write(control_file_path):
-    global control_file
-    if debug:
-        print("number of lines", len(control_file))
-    with open(control_file_path, 'w') as f:
-        for line_contents in control_file:
-            f.write("%s\n" % line_contents)
-            # f.write(line_contents)
-
-def vacation_file_read(vacation_file_path):
-    try:
-        f = open(vacation_file_path)
-        if debug:
-            print(list(f))
-    except FileNotFoundError:
-        if debug:
-            print("File not accessible")
-    finally:
-        f.close()
-
-# def vacation_file_write(vacation_file_path):
-    # dummy
-
+        print('  called reset: ', redirect_unset, vacation_unset)
+    return (redirect_unset and vacation_unset )
 
 
 ''' end functions, start of work ################################################
@@ -266,33 +247,12 @@ def vacation_file_read(vacation_file_path):
 # let the user manipulate the relevant sections
 # write the files out again
 
-# read the control file into a list, we will manipulate this into another list, and then write write that out.
-if not control_file_read(control_file_path):
+# read the control file into a list
+if not control_file_read(control_file, control_file_path, debug):
     # failed to read the control file, try the template
-    if debug:
-        print("fail")
-    if not control_file_read(control_template):
+    if not control_file_read(control_file, control_template, debug):
         # template failed as well, tell the user
-        if debug:
-            print("fail")
-        ''' Popup(args=*<1 or N object>,
-                title=None,
-                button_color=None,
-                background_color=None,
-                text_color=None,
-                button_type=0,
-                auto_close=False,
-                auto_close_duration=None,
-                custom_text=(None, None),
-                non_blocking=False,
-                icon=None,
-                line_width=None,
-                font=None,
-                no_titlebar=False,
-                grab_anywhere=False,
-                keep_on_top=False,
-                location=(None, None))
-        '''
+        # Popup(args=*<1 or N object>, title=None, button_color=None, background_color=None, text_color=None, button_type=0, auto_close=False, auto_close_duration=None, custom_text=(None, None), non_blocking=False, icon=None, line_width=None, font=None, no_titlebar=False, grab_anywhere=False, keep_on_top=False, location=(None, None))
         sg.popup('Required file(s) missing' + \
             '\n  failed to read control file:\t' + str(control_file_path) + \
             '\n  failed to read template file:\t' + str(control_template) +\
@@ -300,8 +260,9 @@ if not control_file_read(control_file_path):
         exit()
 
 if debug:
-    for line in control_file:
-        print(line)
+    print("control file ======================================================")
+    for i in range(0, len(control_file), 1):
+        print(str(i) + ":", control_file[i])
 
 ''' parse the control file ===============================================
 '''
@@ -312,14 +273,22 @@ if re.search("^# Exim filter", control_file[0]) is not None:
         print("valid file:", 0, control_file[0])
 
 # now parse the file:
-
-for i in range(0, len(control_file)-1, 1):
+'''after we've finished this, we should have set:
+    is_mail_redirect
+    forward_email
+    forward_line
+    is_out_of_office
+    vacation_section_start
+    vacation_section_end
+    alias_list
+'''
+for i in range(0, len(control_file), 1):
     # if debug:
-        # print(i, control_file[i],end='')
+        # print(i, control_file[i])
     this_line = control_file[i]
 
     ''' ==== Forward commands ============================================
-        in this section we're interested in a line with a "deliver" command
+        in this section we're interested in a line with a "deliver" command surrounded by blanks
     '''
     if re.search(r'\bdeliver\b', this_line):
         # is it commented?
@@ -355,18 +324,15 @@ for i in range(0, len(control_file)-1, 1):
 
     # ==== vacation alias, there might be more than one
     #   alias myname@company.com
-
     if (vacation_section and re.search(r'\balias\b', this_line)):
         # get the email address part, split the line up on spaces, and get the last one
-        line_list = this_line.split()
-        # alias_email[alias_index] = line_list[len(line_list) - 1]
-        alias_list = alias_list + line_list[len(line_list) - 1] + '\n'
+        line_list = this_line.split(" ")
+        alias_list.append(line_list[-1])
+        aliases_last_line = i
         # if this is empty or does not look like an email address, we'll deal with this at file write time
         if debug:
-            print("alias:", alias_list)
+            print("alias:", i, alias_list)
 
-    # we might usefully get here the last line which is an email alias so we know where to slot the aliases back in again.
-    
     # ==== message file location
     #   file "$home/.vacation.msg"
     if (vacation_section and re.search(r'\bfile\b', this_line)): 
@@ -374,7 +340,7 @@ for i in range(0, len(control_file)-1, 1):
         vacation_file_linux_version = line_list[len(line_list) - 1]
         intVacationFileLine = i
         if debug:
-            print(" file:", i, vacation_file_linux_version)
+            print("vfile:", i, vacation_file_linux_version)
 
     # ==== vacation from
     #   from "Firstname Secondname <recipient.name@company.co.uk>"
@@ -396,10 +362,7 @@ for i in range(0, len(control_file)-1, 1):
         vacation_section_end = i
         vacation_section = False
         if debug:
-            print('  section end: ', i,              this_line)
-        # remove trailing "\n" from alias_list
-        alias_list = re.sub("\n$", "", alias_list)
-
+            print('v end:', i, this_line)
 
     ''' ==== Vacation section end, , ends with endif ================================
     we're not interested in any of the rest of the file, it will (if defined) the user's own filter definitions
@@ -413,52 +376,33 @@ for i in range(0, len(control_file)-1, 1):
 # if we have not yet retrieved valid user details, go get them
 if valid_email(email_address) and len(my_name) > 5:
     if debug:
-        print("\nvalid email:\n" " name:", i, my_name, "\nemail:", i, email_address)
+        print("\nvalid email:\n" " name:", i, my_name, "/ email:", email_address)
 else:
     # get_user_details    
     my_name, email_address = get_user_details()
     if debug:
-        print("\nvalid email:\n" " FAIL:", i, my_name, "\nemail:", i, email_address)
+        print("\nvalid email:\n" " FAIL:", i, my_name, "/ email:", email_address)
 
 # by now we have the linux version of where we think the vacation file should be, convert it to windows format
 vacation_file_windows_version = vacation_file_linux_version.replace("$home", home_share)
 vacation_file_windows_version = vacation_file_windows_version.replace("/","\\")
-
 if debug:
-    print("vfile:", i, vacation_file_windows_version)
+    print("vfwin:", i, vacation_file_windows_version)
 
-# set VacationFile to the referenced file or default
-if os.path.isfile('vacation_file_windows_version'):
-    vacation_file = vacation_file_windows_version
-else:
-    vacation_file = vacation_file_path
-
+# read the vacation file into a list
+if not control_file_read(vacation_file, vacation_file_path, debug):
+    # failed to read the control file, try the template
+    if not control_file_read(vacation_file, vacation_template, debug):
+        # template failed as well, tell the user
+        sg.popup('Required file(s) missing' + \
+            '\n  failed to read control file:\t' + str(vacation_file_path) + \
+            '\n  failed to read template file:\t' + str(vacation_template) +\
+            '\nPlease report this error, program will now exit', title = "Error")
+        exit()
 if debug:
-    print("vfile:", i, vacation_file)
-
-
-
-# # default message
-# LoadDefaultMessage
-# now, if the file exists, and contains data, read it
-# if os.path.isfile(VacationFile): 
-    # Set VacationFile = fso.GetFile(vacation_file)
-    # if VacationFile.Size > 0:
-        # Set VacationFile = fso.OpenTextFile(VacationFile, ForReading)
-        # VacationMessage = VacationFile.ReadAll
-        # VacationFile.Close
-    # End if
-# End if
-
-try:
-    f = open(vacation_file)
-    if debug:
-        print(list(f))
-except FileNotFoundError:
-    if debug:
-        print("File not accessible")
-finally:
-    f.close()
+    print("vacation file =====================================================")
+    for i in range(0, len(vacation_file), 1):
+        print(str(i) + ":", vacation_file[i])
    
 # which mode are we in?  and do some sanity checking
 all_unset            = True
@@ -471,6 +415,10 @@ if is_mail_redirect and is_out_of_office:
 if is_mail_redirect or is_out_of_office:
     all_unset        = False
 
+# we need a "\n" version of alias_list and vacation_file
+my_aliases = "\n".join(alias_list)
+my_message = "\n".join(vacation_file)
+
 # OK, now we need to ask the user what to do
 window_layout = [
     # [sg.Menu(menu_def, tearoff=True)],
@@ -482,8 +430,8 @@ window_layout = [
 
     [sg.Radio('set Out of Office message:', "RADIO1", default=is_out_of_office)],
     [sg.InputText('My Name',  tooltip='My Name')],
-    [sg.MLine(default_text=alias_list, size=(80, 2), tooltip='a list of all the addresses people might send mail to you as'),],
-    [sg.MLine(default_text='I am currently out of the office.\nI will respond to your message on my return.', size=(80, 3), tooltip='message'),],
+    [sg.MLine(default_text=my_aliases, size=(80, 1), tooltip='a list of all the addresses people might send mail to you as'),],
+    [sg.MLine(default_text=my_message, size=(80, 3), tooltip='your out of office message'),],
     [sg.Text('Each person will only receive the message once in a 10 day period, messages from mailing lists & spam will be ignored.')],
 
     [sg.Radio('turn off "Copy to" or "Out of Office" message', "RADIO1", default=all_unset)],
@@ -494,56 +442,53 @@ window_layout = [
     # and the action buttons at the bottom
     [sg.Submit(tooltip='Click to submit this form'), sg.Cancel()]]
 
-window = sg.Window('email Assistant', window_layout, no_titlebar=False, default_element_size=(40, 1), grab_anywhere=True)
+window = sg.Window('email Assistant', window_layout, no_titlebar=False, default_element_size=(40, 1))
 
-# and then this is what we do if one of the buttons is clicked
-event, values = window.read()
-if event in (None, 'Cancel'):
-    exit()
+while True:
 
-# so if we got here - we need to do some work
-if debug:
-    print("=========================================================================")
-    print(values)
+    # and then this is what we do if one of the buttons is clicked
+    event, values = window.read()
+    if event in (None, 'Cancel'):
+        window.close()
+        exit()
 
-# 0: False, 1: 'recipient@company.co.uk', 2: False, 3: 'My Name', 4: 'my email address(es)\n', 5: 'I am currently out of the office.\nI will respond to your message on my return.\n', 6: True}
-is_mail_redirect = values[0]
-redirect_email   = values[1]
-is_ooo           = values[2]
-ooo_my_name      = values[3]
-ooo_my_aliases   = values[4]
-ooo_message      = values[5]
-is_cancel        = values[6]
+    # so if we got here - we need to check the inputs, and if all is well, write the files
+    # 0: False, 1: 'recipient@company.co.uk', 2: False, 3: 'My Name', 4: 'my email address(es)\n', 5: 'I am currently out of the office.\nI will respond to your message on my return.\n', 6: True}
+    is_mail_redirect = values[0]
+    redirect_email   = values[1]
+    is_ooo           = values[2]
+    ooo_my_name      = values[3]
+    ooo_my_aliases   = values[4]
+    ooo_message      = values[5]
+    is_cancel        = values[6]
 
-if debug:
-    print('   is_redirect: ',        is_mail_redirect)   
-    print('redirect_email: ',          redirect_email)
-    print('        is_ooo: ',                  is_ooo)       
-    print('   ooo_my_name: ',             ooo_my_name)   
-    print('ooo_my_aliases: ',          ooo_my_aliases)  
-    print('   ooo_message: ',             ooo_message)   
-    print('     is_cancel: ',               is_cancel)
-     
-if is_mail_redirect:
-    set_ok = set_redirect(True, redirect_email)
-
-if is_ooo:
     if debug:
-        print(type(ooo_my_aliases))
-    set_ok = set_vacation(True, ooo_my_name, ooo_my_aliases, ooo_message)   
+        print("=========================================================================")
+        print('   is_redirect: ',        is_mail_redirect)   
+        print('redirect_email: ',          redirect_email)
+        print('        is_ooo: ',                  is_ooo)       
+        print('   ooo_my_name: ',             ooo_my_name)   
+        print('ooo_my_aliases: ',          ooo_my_aliases)  
+        print('   ooo_message: ',             ooo_message)   
+        print('     is_cancel: ',               is_cancel)
+         
+    if is_mail_redirect:
+        set_ok = set_redirect(True, redirect_email)
 
-if is_cancel:
-    set_ok = reset()
+    if is_ooo:
+        if debug:
+            print(type(ooo_my_aliases))
+        set_ok = set_vacation(True, ooo_my_name, ooo_my_aliases, ooo_message)   
 
-if debug:
-    print('        set_ok: ',               set_ok)
-    print('  forward_line: ',               control_file[forward_line])
-    print('  vacation_sec: ',               control_file[vacation_section_start])
+    if is_cancel:
+        set_ok = reset()
 
-control_file_write(".forward") #, control_file)
+    if debug:
+        print('        set_ok: ',               set_ok)
+        print('  forward_line: ',               control_file[forward_line])
+        print('  vacation_sec: ',               control_file[vacation_section_start])
 
-# # and finally
-window.close()
-
-# if __name__ == '__main__':
-    # main()
+    if set_ok:
+        window.close()
+        exit()
+   

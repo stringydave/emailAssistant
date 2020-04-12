@@ -23,14 +23,14 @@ then
 endif
 
 # out of office
-if personal
-  alias first.second@company.co.uk
-  then
-  vacation to $reply_address
-  file "$home/.vacation.msg"
-  once $home/.vacation.db
-  log $home/.vacation.log
-  once_repeat 10d
-  from "First Second <first.second@company.co.uk>"
-  subject "Auto: Re: $h_subject:"
-endif
+# if personal
+#   alias first.second@company.co.uk
+#   then
+#   vacation to $reply_address
+#   file "$home/.vacation.msg"
+#   once $home/.vacation.db
+#   log $home/.vacation.log
+#   once_repeat 10d
+#   from "First Second <first.second@company.co.uk>"
+#   subject "Auto: Re: $h_subject:"
+# endif
