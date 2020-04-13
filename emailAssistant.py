@@ -135,6 +135,7 @@ def set_redirect(set_this, redirect_to = 'dummy@dummy.com'):
         # add a comment to the start of the line, unless it already has one
         if not re.match("#", control_file[forward_line]):
             control_file[forward_line] = "# " + control_file[forward_line]
+        return True
 
 def set_vacation(set_this, vacation_my_name="", vacation_my_aliases="", vacation_message=""):
     global vacation_section_end
@@ -178,6 +179,9 @@ def set_vacation(set_this, vacation_my_name="", vacation_my_aliases="", vacation
         # and then do the last line of the section
         control_file[vacation_section_end] = re.sub("^# *", "", control_file[vacation_section_end])
         
+        # and do this
+        set_redirect(False)
+
         # and now we need to deal with the alias lines: like #   alias recipient.name@company.co.uk"
         # there could be more or less of them than we had in the file we just read.
         # when we read the control file there were 1 or more alias lines, (which we assume are contiguous)
@@ -200,9 +204,6 @@ def set_vacation(set_this, vacation_my_name="", vacation_my_aliases="", vacation
             for j in range(0, len(control_file_new), 1):
                 print(str(j) + ":", control_file_new[j])
 
-        # and do this
-        set_redirect(False)
-
         # and write the new version of control file
         cf_write_status = control_file_write(control_file_new, control_file_path, debug)
         # write out the vacation file in case we changed it
@@ -223,13 +224,15 @@ def reset():
         print('  called reset: ')
     redirect_unset = set_redirect(False)
     vacation_unset = set_vacation(False)
-    if debug:
-        print('  called reset: ', redirect_unset, vacation_unset)
     
     # maybe? if (redirect_unset and vacation_unset):
     #       control_file_write(control_file, control_file_path, debug)
     # and write the file with the unset states
     cf_write_status = control_file_write(control_file, control_file_path, debug)
+    
+    if debug:
+        print('  called reset: ', redirect_unset, vacation_unset, cf_write_status)
+        
     # and return if that all worked
     return (redirect_unset and vacation_unset and cf_write_status)
 
@@ -363,8 +366,8 @@ for i in range(0, len(control_file), 1):
         if debug:
             print('v end:', i, this_line)
 
-    ''' ==== Vacation section end, , ends with endif ================================
-    we're not interested in any of the rest of the file, it will (if defined) the user's own filter definitions
+    ''' ==== Vacation section end, ends with endif ==================================
+    if any further lines do exist they will be the user's own filter definitions
     we need to preserve them, but no more action is required
     ==== end of control file parsing ================================================
 '''
@@ -377,7 +380,7 @@ if valid_email(email_address) and len(my_name) > 5:
     if debug:
         print("\nvalid email:\n" " name:", i, my_name, "/ email:", email_address)
 else:
-    # get_user_details    
+    # get_user_details from Thunderbird    
     my_name, email_address = get_user_details()
     if debug:
         print("\nvalid email:\n" " FAIL:", i, my_name, "/ email:", email_address)
@@ -475,7 +478,6 @@ while True:
         set_ok = set_redirect(True, redirect_email)
 
     if is_ooo:
-        debug = True
         set_ok = set_vacation(True, ooo_my_name, ooo_my_aliases, ooo_message)   
 
     if is_cancel:
