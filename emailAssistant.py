@@ -143,11 +143,15 @@ def set_vacation(set_this, vacation_my_name="", vacation_my_aliases="", vacation
 
     if set_this:
         # the variable vacation_file_linux_version is set already
-        # get alias_list and vacation_file back into type list
+        # get alias_list and vacation_file back into type list, remove any trailing new line
+        vacation_my_aliases = re.sub("\n$", "", vacation_my_aliases)
+        vacation_message    = re.sub("\n$", "", vacation_message)
+        # and split on the remaining new lines
         alias_list    = re.split(r"\n+", vacation_my_aliases)
         vacation_file = re.split(r"\n+", vacation_message)
+        
         if debug:
-            print('  set_vacation: ', set_this, vacation_my_name, vacation_my_aliases, alias_list, vacation_message)
+            print('  set_vacation: ', set_this, vacation_my_name, vacation_my_aliases, alias_list, vacation_message, vacation_file)
             print('vacation_start: ', vacation_section_start)
             print('  vacation_end: ', vacation_section_end)
         
@@ -156,8 +160,8 @@ def set_vacation(set_this, vacation_my_name="", vacation_my_aliases="", vacation
             sg.popup('out of office "my name"' + vacation_my_name, ' does not seem to be valid', title = 'error')
             return False
         
-        # parse the email aliases, last one is a extra blank line
-        for i in range(0, len(alias_list) - 1, 1):
+        # parse the email aliases
+        for i in range(0, len(alias_list), 1):
             if not valid_email(alias_list[i]):
                 sg.popup('my email address: ' + '"' + alias_list[i] + '"' , "does not seem to be a valid email address", title = 'error')
                 return False
@@ -174,31 +178,22 @@ def set_vacation(set_this, vacation_my_name="", vacation_my_aliases="", vacation
         # and then do the last line of the section
         control_file[vacation_section_end] = re.sub("^# *", "", control_file[vacation_section_end])
         
-        # and now we need to deal with the alias lines:
-        # alias recipient.name@company.co.uk"
+        # and now we need to deal with the alias lines: like #   alias recipient.name@company.co.uk"
         # there could be more or less of them than we had in the file we just read.
-        # when we read the control file there were alias_count alias lines, (which we assume are contiguous)
+        # when we read the control file there were 1 or more alias lines, (which we assume are contiguous)
         # and now there are len(alias_list) alias lines
-        # so simplest method is to read everything from control_file[0] up to control_file[aliases_last_line - alias_count]
-        # into a new list
+        # so simplest method is to read everything from 
+        # control_file[0] up to control_file[aliases_first_line] into a new list
         # then read alias_list into the next elements
         # then read from control_file[aliases_last_line + 1] to the end of file into the new list
-        # then we need to pass out the new list as control_file_new
         
-        aliases_first_line = aliases_last_line - alias_count + 1
         for j in range(0, aliases_first_line, 1):
-            # if debug:
-                # print(str(j) + ":", control_file[j])
             control_file_new.append(control_file[j])
 
-        for k in range(0, len(alias_list) - 1, 1):
-            # if debug:
-                # print(str(k) + ":", "   alias", alias_list[k])
+        for k in range(0, len(alias_list), 1):
             control_file_new.append("  alias " + alias_list[k])
 
         for j in range(aliases_last_line + 1, len(control_file), 1):
-            # if debug:
-                # print(str(j) + ":", control_file[j])
             control_file_new.append(control_file[j])
 
         if debug:
@@ -280,7 +275,7 @@ if re.match('# Exim filter', control_file[0]):
     forward_line
     is_out_of_office
     alias_list
-    alias_count
+    aliases_first_line
     aliases_last_line
     vacation_section_start
     vacation_section_end
@@ -331,11 +326,11 @@ for i in range(0, len(control_file), 1):
         # get the email address part, split the line up on spaces, and get the last one
         line_list = this_line.split(" ")
         alias_list.append(line_list[-1])
-        alias_count = len(alias_list)
-        aliases_last_line = i
-        # if this is empty or does not look like an email address, we'll deal with this at file write time
+        aliases_last_line  = i
+        aliases_first_line = aliases_last_line - len(alias_list)
+        # if alias is empty or does not look like an email address, we'll deal with this at file write time
         if debug:
-            print("alias:", i, alias_count, alias_list)
+            print("alias:", i, alias_list)
 
     # ==== message file location
     #   file "$home/.vacation.msg"
