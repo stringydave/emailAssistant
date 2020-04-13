@@ -327,7 +327,7 @@ for i in range(0, len(control_file), 1):
         line_list = this_line.split(" ")
         alias_list.append(line_list[-1])
         aliases_last_line  = i
-        aliases_first_line = aliases_last_line - len(alias_list)
+        aliases_first_line = aliases_last_line - len(alias_list) + 1
         # if alias is empty or does not look like an email address, we'll deal with this at file write time
         if debug:
             print("alias:", i, alias_list)
