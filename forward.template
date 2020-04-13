@@ -1,4 +1,4 @@
-# Exim Filter
+# Exim filter
 # the above line is required, it tells the system what syntax to expect in the file
 # documentation at http://www.exim.org/exim-html-current/doc/html/spec_html/filter_ch-exim_filter_files.html
 # folder names must have trailing /

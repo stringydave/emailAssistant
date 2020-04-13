@@ -48,12 +48,11 @@ vacation_section = False
 vacation_section_start = 0
 vacation_section_end = 0
 alias_index = 0
-alias_list = ""
 my_name = ""
 # define empty lists
 control_file = [""]
 control_file.clear()
-alias_list = ["aliases"]
+alias_list = [""]
 alias_list.clear()
 vacation_file = [""]
 vacation_file.clear()
@@ -82,11 +81,17 @@ if debug:
 '''
 
 def valid_email(check_email_address):
-    # the purpose of this function is to check that a string looks like a valid email address
+    if debug:
+        print("checking:", check_email_address)
+        print("   regex:", bool(re.search(r'^[\w\.\+\-]+\@([\w-]+)(\.[\w-]+)+$', check_email_address)))
+        print(not re.search("ecipient", check_email_address))
+        print(not re.search("company",  check_email_address))
+
+    # the purpose of this function is to check that a string looks like a valid email address, derived from:
     # https://stackoverflow.com/questions/8022530/how-to-check-for-valid-email-address
     # check that it seems valid and that it's not still the default address with which we're populating the form
     if len(check_email_address) > 10 \
-        and bool(re.search(r"^[\w\.\+\-]+\@[\w]+\.[a-z]{2,3}$", check_email_address)) \
+        and bool(re.search(r'^[\w\.\+\-]+\@([\w-]+)(\.[\w-]+)+$', check_email_address)) \
         and not re.search("ecipient", check_email_address) \
         and not re.search("company",  check_email_address):
         return True
@@ -130,71 +135,36 @@ def set_redirect(set_this, redirect_to = 'dummy@dummy.com'):
         # add a comment to the start of the line, unless it already has one
         if not re.match("#", control_file[forward_line]):
             control_file[forward_line] = "# " + control_file[forward_line]
-        # and write the control file
-        cf_write_status = control_file_write(control_file, control_file_path, debug)
-        return cf_write_status
 
 def set_vacation(set_this, vacation_my_name="", vacation_my_aliases="", vacation_message=""):
     global vacation_section_end
-    if debug:
-        print('  set_vacation: ', set_this, vacation_my_name, vacation_my_aliases, vacation_message)
-        print('vacation_start: ', vacation_section_start)
-        print('  vacation_end: ', vacation_section_end)
+    control_file_new = [""]
+    control_file_new.clear()
+
     if set_this:
         # the variable vacation_file_linux_version is set already
+        # get alias_list and vacation_file back into type list
+        alias_list    = re.split(r"\n+", vacation_my_aliases)
+        vacation_file = re.split(r"\n+", vacation_message)
+        if debug:
+            print('  set_vacation: ', set_this, vacation_my_name, vacation_my_aliases, alias_list, vacation_message)
+            print('vacation_start: ', vacation_section_start)
+            print('  vacation_end: ', vacation_section_end)
         
         # update the variables
         if len(vacation_my_name) < 3:
             sg.popup('out of office "my name"' + vacation_my_name, ' does not seem to be valid', title = 'error')
             return False
         
-        # vacation_my_aliases is potentially a multiline string
-        # remove any trailing \n
-        vacation_my_aliases = re.sub("\n$", "", vacation_my_aliases)
-        # split on \n
-        aliases = re.split(r"\n+", vacation_my_aliases)
-        # and parse the email aliases
-        for i in range(0, len(aliases), 1):
-            if not valid_email(aliases[i]):
-                sg.popup('my email address: ' + aliases[i], "does not seem to be a valid email address", title = 'error')
+        # parse the email aliases, last one is a extra blank line
+        for i in range(0, len(alias_list) - 1, 1):
+            if not valid_email(alias_list[i]):
+                sg.popup('my email address: ' + '"' + alias_list[i] + '"' , "does not seem to be a valid email address", title = 'error')
                 return False
-
-                # Msgbox "out of office ""my email address""" & vbCRLF & EmailAddressRead(i) & vbCRLF & "does not seem to be a valid email address"
-                # SetVacationStatus = False
-                # Exit Sub
-            # Else
-                # EmailAddressWrite(i) = "  alias " & EmailAddressRead(i)
-            # End if
-        # Next
         
         # this is the from line: from "Firstname Secondname <recipient.name@company.co.uk>"
-        control_file[vacation_from_line]  = '  from "' + vacation_my_name + ' <' + aliases[0] + '>"'
-        if debug:
-            print("     aliases:", len(aliases), aliases)
+        control_file[vacation_from_line]  = '  from "' + vacation_my_name + ' <' + alias_list[0] + '>"'
         
-        # and we need to deal with the alias lines:
-        # alias recipient.name@company.co.uk"
-        # and there could be more or less of them than we had in the file we just read.
-        # when we read the control file there were intAliasIndex alias lines, (which we assume are contiguous)
-        # and now there are Ubound(EmailAddressRead) alias lines
-        # so we're going to overwrite lines from 
-        #   EmailAddressLines(0)
-        # to
-        #   EmailAddressLines(Ubound(EmailAddressRead))
-        
-        # so shuffle everything in the right direction
-        # intShuffleAmount = intAliasIndexRead - intAliasIndex 
-        # For i = intControlFileEOF to EmailAddressLines(0) + intAliasIndex step -1
-            # control_file(i + intShuffleAmount) = control_file(i)
-        # Next
-        
-        
-        # For i = 0 to intAliasIndexRead - 1
-            # # if this is empty or does not look like an email address, fill it with default
-            # if valid_email(EmailAddress(i)): EmailAddress(i) = EmailAddress(0)
-            # control_file(EmailAddressLines(i)) = "  alias " & EmailAddress(i)
-        # Next
-
         # so by now we've got everything back into the list, we just need to uncomment as required
         control_file[vacation_section_start] = re.sub(r"^# *", "", control_file[vacation_section_start])
         # an obscurity of python for loops is that the "to" part stops 1 before the end, so this will stop before the last line, which is what we want.
@@ -204,22 +174,45 @@ def set_vacation(set_this, vacation_my_name="", vacation_my_aliases="", vacation
         # and then do the last line of the section
         control_file[vacation_section_end] = re.sub("^# *", "", control_file[vacation_section_end])
         
+        # and now we need to deal with the alias lines:
+        # alias recipient.name@company.co.uk"
+        # there could be more or less of them than we had in the file we just read.
+        # when we read the control file there were alias_count alias lines, (which we assume are contiguous)
+        # and now there are len(alias_list) alias lines
+        # so simplest method is to read everything from control_file[0] up to control_file[aliases_last_line - alias_count]
+        # into a new list
+        # then read alias_list into the next elements
+        # then read from control_file[aliases_last_line + 1] to the end of file into the new list
+        # then we need to pass out the new list as control_file_new
+        
+        aliases_first_line = aliases_last_line - alias_count + 1
+        for j in range(0, aliases_first_line, 1):
+            # if debug:
+                # print(str(j) + ":", control_file[j])
+            control_file_new.append(control_file[j])
+
+        for k in range(0, len(alias_list) - 1, 1):
+            # if debug:
+                # print(str(k) + ":", "   alias", alias_list[k])
+            control_file_new.append("  alias " + alias_list[k])
+
+        for j in range(aliases_last_line + 1, len(control_file), 1):
+            # if debug:
+                # print(str(j) + ":", control_file[j])
+            control_file_new.append(control_file[j])
+
         if debug:
-            for j in range(vacation_section_start, vacation_section_end + 1, 1):
-                print(control_file[j])
+            for j in range(0, len(control_file_new), 1):
+                print(str(j) + ":", control_file_new[j])
+
         # and do this
         set_redirect(False)
 
-        # # write out the vacation file in case we changed it
-        # Set VacationFile = fso.OpenTextFile(VacationFile, ForWriting, True)
-        # VacationFile.Write(VacationMessage.Value)
-        # Msgbox _
-            # "Out of Office message set:" & vbCRLF & vbCRLF & _
-            # "From: " & vacation_my_name & " " & EmailAddress(0) & vbCRLF & _
-            # "Subject: Auto: Re: <message_subject>" & vbCRLF & _
-            # "Message: " & VacationMessage.Value & vbCRLF & vbCRLF& _
-            # "Please remember to turn this off on your return"
-        return True
+        # and write the new version of control file
+        cf_write_status = control_file_write(control_file_new, control_file_path, debug)
+        # write out the vacation file in case we changed it
+        vf_write_status = control_file_write(vacation_file, vacation_file_path, debug)
+        return (cf_write_status and vf_write_status)
     else: 
         # add a comment to the start of the line, unless it already has one
         for j in range(vacation_section_start, vacation_section_end + 1, 1):
@@ -237,7 +230,13 @@ def reset():
     vacation_unset = set_vacation(False)
     if debug:
         print('  called reset: ', redirect_unset, vacation_unset)
-    return (redirect_unset and vacation_unset )
+    
+    # maybe? if (redirect_unset and vacation_unset):
+    #       control_file_write(control_file, control_file_path, debug)
+    # and write the file with the unset states
+    cf_write_status = control_file_write(control_file, control_file_path, debug)
+    # and return if that all worked
+    return (redirect_unset and vacation_unset and cf_write_status)
 
 
 ''' end functions, start of work ################################################
@@ -249,7 +248,8 @@ def reset():
 
 # read the control file into a list
 if not control_file_read(control_file, control_file_path, debug):
-    # failed to read the control file, try the template
+    # if we failed to read the control file, or it's empty, or the first line is no good,
+    # then try the template, we assume that's formatted correctly
     if not control_file_read(control_file, control_template, debug):
         # template failed as well, tell the user
         # Popup(args=*<1 or N object>, title=None, button_color=None, background_color=None, text_color=None, button_type=0, auto_close=False, auto_close_duration=None, custom_text=(None, None), non_blocking=False, icon=None, line_width=None, font=None, no_titlebar=False, grab_anywhere=False, keep_on_top=False, location=(None, None))
@@ -266,9 +266,10 @@ if debug:
 
 ''' parse the control file ===============================================
 '''
+
 # check the first line
-# variable.search(regex,in_string)
-if re.search("^# Exim filter", control_file[0]) is not None:
+# TODO: move this up to where we first read the control file
+if re.match('# Exim filter', control_file[0]):
     if debug:
         print("valid file:", 0, control_file[0])
 
@@ -278,9 +279,11 @@ if re.search("^# Exim filter", control_file[0]) is not None:
     forward_email
     forward_line
     is_out_of_office
+    alias_list
+    alias_count
+    aliases_last_line
     vacation_section_start
     vacation_section_end
-    alias_list
 '''
 for i in range(0, len(control_file), 1):
     # if debug:
@@ -328,10 +331,11 @@ for i in range(0, len(control_file), 1):
         # get the email address part, split the line up on spaces, and get the last one
         line_list = this_line.split(" ")
         alias_list.append(line_list[-1])
+        alias_count = len(alias_list)
         aliases_last_line = i
         # if this is empty or does not look like an email address, we'll deal with this at file write time
         if debug:
-            print("alias:", i, alias_list)
+            print("alias:", i, alias_count, alias_list)
 
     # ==== message file location
     #   file "$home/.vacation.msg"
@@ -476,8 +480,7 @@ while True:
         set_ok = set_redirect(True, redirect_email)
 
     if is_ooo:
-        if debug:
-            print(type(ooo_my_aliases))
+        debug = True
         set_ok = set_vacation(True, ooo_my_name, ooo_my_aliases, ooo_message)   
 
     if is_cancel:
