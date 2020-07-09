@@ -74,7 +74,7 @@ vacation_template   =  pathlib.Path(__file__).parent.absolute() / "vacation.temp
 debug = False
 
 if debug:
-    print("     home:", home_share, "\n    drive:", system_drive, "\n .forward:", control_file_path, "\n.vacation:", vacation_file_path)
+    print("     home:", home_share, "\n .forward:", control_file_path, "\n.vacation:", vacation_file_path)
     print("control_t:", control_template, "\nvacationt:", vacation_template)
 
 ''' functions =================================================================
@@ -117,9 +117,9 @@ def get_user_details():
     return fullname, user_email
 
 def set_redirect(set_this, redirect_to = 'dummy@dummy.com'):
-# if we're called with true, then 
     if debug:
         print('  set_redirect: ', set_this, redirect_to)
+    # if we're called with true, then 
     if set_this:
         if valid_email(redirect_to):
             control_file[forward_line] = "unseen deliver " + redirect_to
@@ -430,10 +430,10 @@ window_layout = [
 
     [sg.Radio('send a copy of all my mail to:', "RADIO1", default=is_mail_redirect), sg.InputText(forward_email,  tooltip='who do you want to send the mails to?')],
 
-    [sg.Radio('set Out of Office message:', "RADIO1", default=is_out_of_office)],
+    [sg.Radio('set Out of Office message:', "RADIO1", default=is_out_of_office, enable_events=True)],
     [sg.InputText('My Name',  tooltip='My Name')],
-    [sg.MLine(default_text=my_aliases, size=(80, 1), tooltip='a list of all the addresses people might send mail to you as'),],
-    [sg.MLine(default_text=my_message, size=(80, 3), tooltip='your out of office message'),],
+    [sg.Multiline(default_text=my_aliases, size=(80, 2), tooltip='a list of all the addresses people might send mail to you as'),],
+    [sg.Multiline(default_text=my_message, size=(80, 3), tooltip='your out of office message'),],
     [sg.Text('Each person will only receive the message once in a 10 day period, messages from mailing lists & spam will be ignored.')],
 
     [sg.Radio('turn off "Copy to" or "Out of Office" message', "RADIO1", default=all_unset)],
